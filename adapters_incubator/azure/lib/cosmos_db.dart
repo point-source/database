@@ -18,6 +18,7 @@ library azure.cosmos_db;
 
 import 'dart:convert';
 
+import 'package:crypto/crypto.dart';
 import 'package:database/database.dart';
 import 'package:database/database_adapter.dart';
 import 'package:meta/meta.dart';
@@ -67,10 +68,12 @@ class AzureCosmosDB extends DocumentDatabaseAdapter {
     final document = request.document;
     final collection = document.parent;
     final collectionId = collection.collectionId;
+    final partitionKey = document.partition.partitionId;
     final documentId = document.documentId;
     final response = await _apiRequest(
       method: 'GET',
-      path: '/indexes/$collectionId/docs/$documentId',
+      path: '/colls/$collectionId/docs/$documentId',
+      partitionKey: partitionKey,
     );
     yield (Snapshot(
       document: document,
@@ -178,26 +181,37 @@ class AzureCosmosDB extends DocumentDatabaseAdapter {
   Future<_Response> _apiRequest({
     @required String method,
     @required String path,
+    String partitionKey,
     Map<String, String> queryParameters,
     Map<String, Object> json,
   }) async {
     final serviceName = _credentials.serviceId;
 
-    // Query parameters
-    queryParameters ??= <String, String>{};
-    queryParameters['api-version'] = '2019-05-06';
+    path = '/dbs/$serviceName$path';
 
     // ?URI
     final uri = Uri(
       scheme: 'https',
-      host: '$serviceName.search.windows.net',
+      host: '$serviceName.documents.azure.com',
       path: path,
       queryParameters: queryParameters,
     );
 
+    // RFC1123 Datetime String
+    var timestamp = HttpDate.format(DateTime.now());
+
+    var authToken = _generateAuthToken(path, method, timestamp);
+
     // Dispatch HTTP request
     final httpRequest = await httpClient.openUrl(method, uri);
-    httpRequest.headers.set('api-key', _credentials.apiKey);
+    httpRequest.headers
+        .set('Authorization', authToken, preserveHeaderCase: true);
+    httpRequest.headers.set('x-ms-date', timestamp);
+    httpRequest.headers.set('x-ms-version', '2018-12-31');
+    if (partitionKey != null) {
+      httpRequest.headers
+          .set('x-ms-documentdb-partitionkey', '["$partitionKey"]');
+    }
     if (json != null) {
       httpRequest.headers.contentType = ContentType.json;
       httpRequest.write(jsonEncode(json));
@@ -222,26 +236,64 @@ class AzureCosmosDB extends DocumentDatabaseAdapter {
     response.json = jsonDecode(httpResponseBody);
     return response;
   }
+
+  String _generateAuthToken(String path, String method, String timestamp) {
+    var components = path.split('/');
+    var componentCount = components.length - 1;
+    String resType;
+    String resLink;
+
+    if (componentCount.isOdd) {
+      resType = components[componentCount];
+      var lastPart = path.lastIndexOf('/');
+      resLink = path.substring(1, lastPart);
+    } else {
+      resType = components[componentCount - 1];
+      resLink = path.substring(1);
+    }
+
+    var stringToSign = method.toLowerCase() +
+        '\n' +
+        resType.toLowerCase() +
+        '\n' +
+        resLink +
+        '\n' +
+        timestamp.toLowerCase() +
+        '\n' +
+        '' +
+        '\n';
+
+    var key = base64Decode(_credentials.apiKey);
+    var signature = Hmac(sha256, key).convert(utf8.encode(stringToSign));
+    var b64sig = base64Encode(signature.bytes);
+
+    var authToken = 'type=${_credentials.keyType}&ver=1.0&sig=$b64sig';
+    return authToken;
+  }
 }
 
 class AzureCosmosDBCredentials {
   final String serviceId;
   final String apiKey;
+  final String keyType;
 
-  const AzureCosmosDBCredentials({
-    @required this.serviceId,
-    @required this.apiKey,
-  })  : assert(serviceId != null),
-        assert(apiKey != null);
+  const AzureCosmosDBCredentials(
+      {@required this.serviceId,
+      @required this.apiKey,
+      this.keyType = 'master'})
+      : assert(serviceId != null),
+        assert(apiKey != null),
+        assert(keyType != null);
 
   @override
-  int get hashCode => serviceId.hashCode ^ apiKey.hashCode;
+  int get hashCode => serviceId.hashCode ^ apiKey.hashCode ^ keyType.hashCode;
 
   @override
   bool operator ==(other) =>
       other is AzureCosmosDBCredentials &&
       serviceId == other.serviceId &&
-      apiKey == other.apiKey;
+      apiKey == other.apiKey &&
+      keyType == other.keyType;
 }
 
 /// An exception thrown by [AzureCosmosDB].
