@@ -60,7 +60,14 @@ class AzureCosmosDB extends DocumentDatabaseAdapter {
 
   @override
   Future<void> performDocumentInsert(DocumentInsertRequest request) async {
-    throw UnimplementedError();
+    final partitionKey = request.partition?.partitionId;
+    final collection = request.collection;
+    final collectionId = collection.collectionId;
+    await _apiRequest(
+        method: 'POST',
+        path: '/colls/$collectionId/docs',
+        partitionKey: partitionKey,
+        json: request.data);
   }
 
   @override
