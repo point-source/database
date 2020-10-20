@@ -81,6 +81,7 @@ class Partition {
     Document result;
     await DocumentInsertRequest(
       collection: parentCollection,
+      partition: this,
       document: null,
       data: data,
       reach: reach,
