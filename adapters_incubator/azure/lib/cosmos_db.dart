@@ -55,7 +55,14 @@ class AzureCosmosDB extends DocumentDatabaseAdapter {
 
   @override
   Future<void> performDocumentDelete(DocumentDeleteRequest request) async {
-    throw UnimplementedError();
+    final document = request.document;
+    final documentId = document.documentId;
+    final collectionId = document.parent.collectionId;
+    final partitionKey = document.partition.partitionId;
+    await _apiRequest(
+        method: 'DELETE',
+        path: '/colls/$collectionId/docs/$documentId',
+        partitionKey: partitionKey);
   }
 
   @override
@@ -230,12 +237,17 @@ class AzureCosmosDB extends DocumentDatabaseAdapter {
 
     // Handle error
     final statusCode = httpResponse.statusCode;
-    if (statusCode != HttpStatus.ok) {
-      throw AzureCosmosDBException(
-        method: method,
-        uri: uri,
-        statusCode: statusCode,
-      );
+    switch (statusCode) {
+      case HttpStatus.ok:
+      case HttpStatus.created:
+      case HttpStatus.noContent:
+        break;
+      default:
+        throw AzureCosmosDBException(
+          method: method,
+          uri: uri,
+          statusCode: statusCode,
+        );
     }
 
     // Return response
