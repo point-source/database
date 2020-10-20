@@ -97,3 +97,4 @@ export 'src/database/sorter.dart';
 export 'src/database/suggested_query.dart';
 export 'src/database/transaction.dart';
 export 'src/database/write_batch.dart';
+export 'src/database/partition.dart';

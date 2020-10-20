@@ -15,6 +15,7 @@
 import 'package:database/database.dart';
 import 'package:database/database_adapter.dart';
 import 'package:database/schema.dart';
+import 'package:database/src/database/partition.dart';
 import 'package:meta/meta.dart';
 
 /// A document in a [Collection].
@@ -55,6 +56,7 @@ import 'package:meta/meta.dart';
 class Document<T> {
   /// Collection where the document is.
   final Collection parent;
+  final Partition partition;
 
   /// A non-blank document identifier.
   ///
@@ -68,7 +70,7 @@ class Document<T> {
 
   /// Constructs a document. Usually you should call the method
   /// `collection.document("id")` instead of this constructor.
-  Document(this.parent, this.documentId)
+  Document(this.parent, this.documentId, {this.partition})
       : assert(parent != null),
         assert(documentId != null) {
     ArgumentError.checkNotNull(database, 'database');

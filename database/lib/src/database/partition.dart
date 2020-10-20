@@ -20,109 +20,57 @@ import 'package:database/database_adapter.dart';
 import 'package:database/schema.dart';
 import 'package:database/search_query_parsing.dart';
 
-/// A set of documents in a database ([Database]).
+/// A parition of documents in a CosmosDb collection ([Collection]).
 ///
-/// In relational databases, "collection" means a table.
 ///
-/// An example:
-///
-///     Future<void> main() async {
-///       // Use an in-memory database
-///       final database = MemoryDatabaseAdapter().database();
-///
-///       // Our collection
-///       final collection = database.collection('pizzas');
-///
-///       // Our document
-///       final document = collection.newDocument();
-///
-///       await document.insert({
-///         'name': 'Pizza Margherita',
-///         'rating': 3.5,
-///         'ingredients': ['dough', 'tomatoes'],
-///         'similar': [
-///           database.collection('recipes').document('pizza_funghi'),
-///         ],
-///       });
-///       print('Successfully inserted pizza.');
-///
-///       await document.patch({
-///         'rating': 4.5,
-///       });
-///       print('Successfully patched pizza.');
-///
-///       await document.delete();
-///       print('Successfully deleted pizza.');
-///     }
-///
-class Collection {
-  /// Returns database where the document is.
-  final Database database;
-  final Document parentDocument;
+class Partition {
+  /// Returns database where the parition is.
+  final Collection parentCollection;
   final Serializers serializers;
   final FullType fullType;
 
   /// A non-blank identifier.
   ///
-  /// Certain characters ("/", "?", etc.) should be avoided in the collection ID
-  /// because many implementations use REST URIs such as
-  /// "/index/{COLLECTION}/{DOCUMENT}".
-  ///
-  /// It's also a good idea to use lowercase identifiers.
-  final String collectionId;
+  final String partitionId;
 
-  /// Constructs a collection.
+  /// Constructs a partition.
   ///
-  /// Usually it's better to call the method `database.collection("id")`
+  /// Usually it's better to call the method `database.collection('colId').partition("id")`
   /// instead of this constructor.
-  ///
-  /// This constructor enables specifying [parentDocument], which is a concept
-  /// supported by some document database vendor. It typically affects
-  /// documents in the collection behave in transactions.
-  Collection(
-    this.database,
-    this.collectionId, {
-    this.parentDocument,
+  Partition(
+    this.parentCollection,
+    this.partitionId, {
     this.serializers,
     this.fullType,
-  })  : assert(database != null),
-        assert(collectionId != null) {
-    ArgumentError.checkNotNull(database, 'database');
-    if (collectionId == null || collectionId.isEmpty) {
-      throw ArgumentError.value(collectionId, 'collectionId');
+  })  : assert(parentCollection != null),
+        assert(partitionId != null) {
+    ArgumentError.checkNotNull(parentCollection, 'parentCollection');
+    if (partitionId == null || partitionId.isEmpty) {
+      throw ArgumentError.value(partitionId, 'partitionId');
     }
   }
 
   @override
-  int get hashCode => database.hashCode ^ collectionId.hashCode;
+  int get hashCode => parentCollection.hashCode ^ partitionId.hashCode;
 
   @override
   bool operator ==(other) =>
-      other is Collection &&
-      collectionId == other.collectionId &&
-      database == other.database;
+      other is Partition &&
+      partitionId == other.partitionId &&
+      parentCollection == other.parentCollection;
 
-  /// Returns a column.
-  Column<T> column<T>(String name) => Column<T>.fromCollection(this, name);
+  Database get database => parentCollection.database;
+
+  String get collectionId => parentCollection.collectionId;
 
   /// Returns a document.
   ///
   /// Example:
   ///
-  ///     ds.collection('exampleCollection').document('exampleDocument').get();
-  ///
-  Document document(String documentId) {
-    return Document(this, documentId);
-  }
-
-  /// Specifies a parition ID (Azure Cosmos DB only).
-  ///
-  /// Example:
-  ///
   ///     ds.collection('exampleCollection').partition('examplePartition').document('exampleDocument').get();
   ///
-  Partition partition(String partitionId) {
-    return Partition(this, partitionId);
+  Document document(String documentId) {
+    return Document(parentCollection, documentId, partition: this);
   }
 
   /// Inserts a new value.
@@ -132,7 +80,7 @@ class Collection {
   }) async {
     Document result;
     await DocumentInsertRequest(
-      collection: this,
+      collection: parentCollection,
       document: null,
       data: data,
       reach: reach,
@@ -151,7 +99,7 @@ class Collection {
   ///
   /// Example:
   ///
-  ///     database.collection('example').newDocument().insert({'key':'value'});
+  ///     database.collection('example').partition('examplePartition').newDocument().insert({'key':'value'});
   ///
   // TODO: Use a more descriptive method name like documentWithRandomId()?
   Document newDocument() {
@@ -165,9 +113,10 @@ class Collection {
 
   /// Reads schema of this collection, which may be null.
   Future<Schema> schema() async {
-    final schemaResponse = await SchemaReadRequest.forCollection(this)
-        .delegateTo(database.adapter)
-        .last;
+    final schemaResponse =
+        await SchemaReadRequest.forCollection(parentCollection)
+            .delegateTo(database.adapter)
+            .last;
     return schemaResponse.schemasByCollection[collectionId];
   }
 
@@ -201,7 +150,7 @@ class Collection {
     Reach reach,
   }) async {
     return DocumentSearchChunkedRequest(
-      collection: this,
+      collection: parentCollection,
       query: query,
       reach: reach,
     ).delegateTo(database.adapter);
@@ -282,12 +231,13 @@ class Collection {
     Reach reach = Reach.server,
   }) {
     return DocumentSearchRequest(
-      collection: this,
+      collection: parentCollection,
       query: query,
       reach: reach,
     ).delegateTo(database.adapter);
   }
 
   @override
-  String toString() => '$database.collection("$collectionId")';
+  String toString() =>
+      '$database.collection("$collectionId").partition("$partitionId")';
 }
