@@ -159,7 +159,7 @@ class AzureCosmosDB extends DocumentDatabaseAdapter {
       query: query,
       count: count,
       snapshots: List<Snapshot>.unmodifiable(hitsListJson.map((json) {
-        final documentId = json['_rid'] as String;
+        final documentId = json['id'] as String;
         final document = collection.document(documentId);
         final data = <String, Object>{};
         data.addAll(json);
