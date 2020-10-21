@@ -19,6 +19,7 @@ import 'package:database/database.dart';
 import 'package:database/database_adapter.dart';
 import 'package:database/schema.dart';
 import 'package:database/search_query_parsing.dart';
+import 'package:meta/meta.dart';
 
 /// A parition of documents in a CosmosDb collection ([Collection]).
 ///
@@ -110,6 +111,26 @@ class Partition {
       sb.write(random.nextInt(16).toRadixString(16));
     }
     return document(sb.toString());
+  }
+
+  /// Upserts ("inserts or updates") a document.
+  ///
+  /// Optional parameter [reach] can be used to specify the minimum level of
+  /// authority needed. For example:
+  ///   * [Reach.local] tells that the write only needs to reach the local
+  ///     database (which may synchronized with the global database later).
+  ///   * [Reach.global] tells that the write should reach the global master
+  ///     database.
+  Future<void> upsert({
+    @required Map<String, Object> data,
+    Reach reach,
+  }) {
+    return DocumentUpsertRequest.withData(
+      collection: parentCollection,
+      partition: this,
+      data: data,
+      reach: reach,
+    ).delegateTo(database.adapter);
   }
 
   /// Reads schema of this collection, which may be null.

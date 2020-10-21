@@ -178,25 +178,21 @@ class AzureCosmosDB extends DocumentDatabaseAdapter {
 
   @override
   Future<void> performDocumentUpsert(DocumentUpsertRequest request) async {
-    final document = request.document;
-    final collection = document.parent;
-    final collectionId = collection.collectionId;
-    final documentId = document.documentId;
-    final json = <String, Object>{};
-    json.addAll(request.data);
-    json['@search.action'] = 'update';
-    json['_id'] = documentId;
+    final partitionKey = request.partition?.partitionId;
+    final collectionId = request.collection.collectionId;
     await _apiRequest(
-      method: 'POST',
-      path: '/indexes/$collectionId/docs/$documentId',
-      json: json,
-    );
+        method: 'POST',
+        path: '/colls/$collectionId/docs',
+        partitionKey: partitionKey,
+        headers: {'x-ms-documentdb-is-upsert': true},
+        json: request.data);
   }
 
   Future<_Response> _apiRequest({
     @required String method,
     @required String path,
     String partitionKey,
+    Map<String, dynamic> headers,
     Map<String, String> queryParameters,
     Map<String, Object> json,
   }) async {
@@ -204,6 +200,7 @@ class AzureCosmosDB extends DocumentDatabaseAdapter {
 
     path = '/dbs/$serviceName$path';
 
+    headers ??= <String, String>{};
     queryParameters ??= <String, String>{};
 
     // ?URI
@@ -228,6 +225,9 @@ class AzureCosmosDB extends DocumentDatabaseAdapter {
     if (partitionKey != null) {
       httpRequest.headers
           .set('x-ms-documentdb-partitionkey', '["$partitionKey"]');
+    }
+    for (var h in headers.entries) {
+      httpRequest.headers.set(h.key, h.value);
     }
     if (json != null) {
       httpRequest.headers.contentType = ContentType.json;

@@ -21,6 +21,8 @@ import 'package:meta/meta.dart';
 @sealed
 class DocumentUpsertRequest extends Request<Future<void>> {
   final Transaction transaction;
+  final Collection collection;
+  final Partition partition;
   final Document document;
   final Map<String, Object> data;
   final Reach reach;
@@ -28,7 +30,19 @@ class DocumentUpsertRequest extends Request<Future<void>> {
 
   DocumentUpsertRequest({
     this.transaction,
+    this.collection,
+    this.partition,
     @required this.document,
+    @required this.data,
+    @required this.reach,
+    this.inputSchema,
+  });
+
+  DocumentUpsertRequest.withData({
+    this.transaction,
+    @required this.collection,
+    this.partition,
+    this.document,
     @required this.data,
     @required this.reach,
     this.inputSchema,
