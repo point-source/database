@@ -290,7 +290,7 @@ class AzureCosmosDB extends DocumentDatabaseAdapter {
     var b64sig = base64Encode(signature.bytes);
 
     var authToken = 'type=${_credentials.keyType}&ver=1.0&sig=$b64sig';
-    return authToken;
+    return Uri.encodeComponent(authToken);
   }
 }
 
