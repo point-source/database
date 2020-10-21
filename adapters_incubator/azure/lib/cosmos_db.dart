@@ -105,7 +105,7 @@ class AzureCosmosDB extends DocumentDatabaseAdapter {
 
     // filter
     {
-      final filter = query.filter;
+      final filter = query?.filter;
       if (filter != null) {
         queryParameters['querytype'] = 'full';
         queryParameters['search'] = filter.toString();
@@ -115,7 +115,7 @@ class AzureCosmosDB extends DocumentDatabaseAdapter {
 
     // orderBy
     {
-      final sorter = query.sorter;
+      final sorter = query?.sorter;
       if (sorter != null) {
         if (sorter is MultiSorter) {
           queryParameters['orderby'] = sorter.sorters
@@ -130,7 +130,7 @@ class AzureCosmosDB extends DocumentDatabaseAdapter {
 
     // skip
     {
-      final skip = query.skip ?? 0;
+      final skip = query?.skip ?? 0;
       if (skip != 0) {
         queryParameters[r'$skip'] = skip.toString();
       }
@@ -138,7 +138,7 @@ class AzureCosmosDB extends DocumentDatabaseAdapter {
 
     // take
     {
-      final take = query.take;
+      final take = query?.take;
       if (take != null) {
         queryParameters[r'$top'] = take.toString();
       }
@@ -147,18 +147,19 @@ class AzureCosmosDB extends DocumentDatabaseAdapter {
     // Dispatch request
     final response = await _apiRequest(
       method: 'GET',
-      path: '/indexes/$collectionId/docs',
+      path: '/colls/$collectionId/docs',
       queryParameters: queryParameters,
     );
 
     // Return response
-    final hitsJson = response.json['hits'] as Map<String, Object>;
-    final hitsListJson = hitsJson['hit'] as List;
+    final hitsListJson = response.json['Documents'] as List;
+    final count = response.json['_count'];
     yield (QueryResult(
       collection: collection,
       query: query,
+      count: count,
       snapshots: List<Snapshot>.unmodifiable(hitsListJson.map((json) {
-        final documentId = json['_id'] as String;
+        final documentId = json['_rid'] as String;
         final document = collection.document(documentId);
         final data = <String, Object>{};
         data.addAll(json);
@@ -203,12 +204,14 @@ class AzureCosmosDB extends DocumentDatabaseAdapter {
 
     path = '/dbs/$serviceName$path';
 
+    queryParameters ??= <String, String>{};
+
     // ?URI
     final uri = Uri(
       scheme: 'https',
       host: '$serviceName.documents.azure.com',
       path: path,
-      queryParameters: queryParameters,
+      queryParameters: queryParameters.isNotEmpty ? queryParameters : null,
     );
 
     // RFC1123 Datetime String
